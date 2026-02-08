@@ -3,6 +3,12 @@ import numpy as np
 import cv2
 from  ultralytics import YOLO
 import supervision as sv
+from playsound3 import playsound
+import threading
+import os
+
+print(f"Current working directory: {os.getcwd()}")
+print(f"Audio file exists: {os.path.exists('skeleton.mp3')}")
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -17,6 +23,9 @@ def parse_arguments() -> argparse.Namespace:
     return args
 
 def play_deterrent():
+            audio_thread = threading.Thread(target=playsound, args=("skeleton.mp3",)) # play deterrent sound in separate thread
+            audio_thread.start()
+            
             deterrent = cv2.VideoCapture("skeleton.mp4") # load deterrent video
             
             while deterrent.isOpened():
@@ -29,7 +38,8 @@ def play_deterrent():
                 if cv2.waitKey(30) == ord('q'): # press q to end deterrent video
                     break
             deterrent.release()
-            cv2.destroyAllWindows()
+            cv2.destroyWindow('LOCK IN!!!')  # Only close this window, not all
+            audio_thread.join() # wait for audio thread to finish before continuing with main loop
 
 def main():
     args = parse_arguments()
