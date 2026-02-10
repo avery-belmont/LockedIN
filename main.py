@@ -5,10 +5,7 @@ from  ultralytics import YOLO
 import supervision as sv
 from playsound3 import playsound
 import threading
-import os
 
-print(f"Current working directory: {os.getcwd()}")
-print(f"Audio file exists: {os.path.exists('skeleton.mp3')}")
 
 
 def parse_arguments() -> argparse.Namespace:
