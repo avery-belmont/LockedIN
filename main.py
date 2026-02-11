@@ -1,11 +1,24 @@
 import argparse
 import numpy as np
 import cv2
+from requests import options
 from  ultralytics import YOLO
 import supervision as sv
 from playsound3 import playsound
 import threading
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
 
+
+#initializing mediapipe hand detection and drawing utilities
+base_options = python.BaseOptions(model_asset_path='hand_landmarker.task')
+options = vision.HandLandmarkerOptions(
+    base_options=base_options,
+    num_hands=2,
+    running_mode=vision.RunningMode.IMAGE
+)
+hand_detector = vision.HandLandmarker.create_from_options(options)
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -48,6 +61,7 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) # width
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) # height
 
+
     model = YOLO("yolov8s.pt")
 
     box_annotator = sv.BoxAnnotator(
@@ -69,19 +83,37 @@ def main():
         ret, frame = cap.read() # returns frame (image numpy array), ret tells you if capture works properly 
         if not ret:
             break
+
+        #convert frame for mediapipe
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+
+        #detect hands
+        hand_results = hand_detector.detect(mp_image)
         
+        # DEBUG: Print if hands detected
+        print(f"Hands detected: {len(hand_results.hand_landmarks) if hand_results.hand_landmarks else 0}")
+
         result = model(frame)[0] # get the first result (since we are processing one frame at a time)
         detections = sv.Detections.from_ultralytics(result)
 
-        #print(f"Detected classes: {detections.class_id}")
-        #print(f"Confidences: {detections.confidence}")
+        #draw hand landmarks on frame
+        if hand_results.hand_landmarks:
+            for hand_landmarks in hand_results.hand_landmarks:
+                for landmark in hand_landmarks:
+                    x = int(landmark.x * frame.shape[1]) # convert normalized coordinates to pixel coordinates
+                    y = int(landmark.y * frame.shape[0])
+                    cv2.circle(frame, (x, y), 5, (0, 255, 0), -1) # draw green circle at each landmark point
+                    
+        results = model(frame) # run YOLOv8 model on the frame
+        detections = sv.Detections.from_ultralytics(results[0]) # convert YOLOv8 results to Supervision Detections format
 
         mask = detections.class_id == 67
         phone_detections = detections[mask] # filter for phone detections (class_id 67 corresponds to cell phone in COCO dataset)
         
        
 
-        if len(phone_detections) > 0 and not phone_last_frame: # if phone is detected and it was not detected in the last frame
+        if len(phone_detections) > 0 and not phone_last_frame and hand_results.hand_landmarks: # if phone is detected and it was not detected in the last frame
             play_deterrent()
             phone_last_frame = True # set variable to true to indicate phone was detected in this frame
         elif len(phone_detections) == 0: # if no phone is detected, reset the variable
