@@ -51,6 +51,16 @@ def play_deterrent():
             cv2.destroyWindow('LOCK IN!!!')  # Only close this window, not all
             audio_thread.join() # wait for audio thread to finish before continuing with main loop
 
+def is_hand_holding_phone(hand_landmarks, phone_box, frame_width, frame_height):
+    x1, y1, x2, y2 = phone_box # get bounding box coordinates of phone detection
+    for landmark in hand_landmarks:
+            x = int(landmark.x * frame_width) # convert normalized coordinates to pixel coordinates (assuming 1280x720 resolution)
+            y = int(landmark.y * frame_height)
+            if x1 <= x <= x2 and y1 <= y <= y2: # check if hand landmark is within phone bounding box
+                return True
+    return False
+
+
 def main():
     args = parse_arguments()
     #frame_width, frame_height = args.webcam_resolution
@@ -84,6 +94,9 @@ def main():
         if not ret:
             break
 
+        frame_height, frame_width = frame.shape[:2] # get actual frame dimensions
+
+
         #convert frame for mediapipe
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
@@ -105,18 +118,26 @@ def main():
                     y = int(landmark.y * frame.shape[0])
                     cv2.circle(frame, (x, y), 5, (0, 255, 0), -1) # draw green circle at each landmark point
                     
-        results = model(frame) # run YOLOv8 model on the frame
-        detections = sv.Detections.from_ultralytics(results[0]) # convert YOLOv8 results to Supervision Detections format
+        results = model(frame)[0] # run YOLOv8 model on the frame
+        detections = sv.Detections.from_ultralytics(results) # convert YOLOv8 results to Supervision Detections format
 
         mask = detections.class_id == 67
         phone_detections = detections[mask] # filter for phone detections (class_id 67 corresponds to cell phone in COCO dataset)
         
        
+        hand_holding_phone = False
+        if len(phone_detections) > 0 and hand_results.hand_landmarks: # if phone is detected and hand landmarks are detected
+            phone_box = phone_detections[0].xyxy[0] # get bounding box coordinates of first phone detection
+            #check each detected hand
+            for hand_landmarks in hand_results.hand_landmarks:
+                if is_hand_holding_phone(hand_landmarks, phone_box, frame_width, frame_height): # check if hand is holding phone
+                    hand_holding_phone = True
+                    break
 
-        if len(phone_detections) > 0 and not phone_last_frame and hand_results.hand_landmarks: # if phone is detected and it was not detected in the last frame
+        if len(phone_detections) > 0 and not phone_last_frame and hand_holding_phone: # if phone is detected and it was not detected in the last frame
             play_deterrent()
             phone_last_frame = True # set variable to true to indicate phone was detected in this frame
-        elif len(phone_detections) == 0: # if no phone is detected, reset the variable
+        elif not hand_holding_phone: # if no hand is holding the phone, reset the variable
             phone_last_frame = False
             #cv2.imshow('Phone Detections', frame)
 
