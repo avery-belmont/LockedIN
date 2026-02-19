@@ -9,6 +9,29 @@ import threading
 import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
+import csv
+from datetime import datetime
+
+
+usage_log = [] # list to store usage log entries
+
+def log_phone_usage(start_time, end_time):
+    duration = (end_time - start_time).total_seconds() # calculate duration in seconds
+
+    usage_data = {
+         'date': start_time.strftime("%Y-%m-%d"), # log date of usage
+         'start_time': start_time.strftime("%H:%M:%S"), # log start time
+            'end_time': end_time.strftime("%H:%M:%S"), # log end time
+            'duration_seconds': duration # log duration of usage in seconds
+    }
+    
+    #append to CSV
+    with open('phone_usage_log.csv', mode='a', newline='') as f:
+        fieldnames = ['date', 'start_time', 'end_time', 'duration_seconds']
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if f.tell() == 0: # check if file is new or empty
+             writer.writeheader() # write header if file is new or empty
+        writer.writerow(usage_data) # write usage data to CSV file
 
 
 #initializing mediapipe hand detection and drawing utilities
@@ -86,7 +109,7 @@ def main():
     
     
 
-
+    phone_pickup_time = None # variable to track when phone was picked up
     phone_last_frame = False # variable to track if phone was detected in the last frame
 
     while True:
@@ -146,6 +169,12 @@ def main():
 
         cv2.imshow('Phone Detections', annotated_frame)
         
+        if hand_holding_phone and phone_pickup_time is None: # if hand is holding phone and pickup time is not already set
+            phone_pickup_time = datetime.now() # set pickup time to current time
+            play_deterrent() # play deterrent when phone is picked up
+        elif phone_pickup_time is not None: # if hand is not holding phone and pickup time is set, log usage and reset pickup time
+            log_phone_usage(phone_pickup_time, datetime.now()) # log phone usage with pickup and drop times
+            phone_pickup_time = None # reset pickup time for next usage session
        
        
         
