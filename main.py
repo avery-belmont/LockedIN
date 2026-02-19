@@ -83,6 +83,24 @@ def is_hand_holding_phone(hand_landmarks, phone_box, frame_width, frame_height):
                 return True
     return False
 
+def get_daily_stats():
+    """Get daily phone usage statistics from the log file."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    total_pickups = 0
+    total_duration = 0
+
+    try:
+        with open('phone_usage_log.csv', mode='r') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                if row['date'] == today:
+                    total_pickups += 1
+                    total_duration += float(row['duration_seconds'])
+
+    except FileNotFoundError:
+        pass  # If the log file doesn't exist yet, return zeros
+    
+    return total_pickups, total_duration
 
 def main():
     args = parse_arguments()
@@ -147,7 +165,7 @@ def main():
         mask = detections.class_id == 67
         phone_detections = detections[mask] # filter for phone detections (class_id 67 corresponds to cell phone in COCO dataset)
         
-       
+        
         hand_holding_phone = False
         if len(phone_detections) > 0 and hand_results.hand_landmarks: # if phone is detected and hand landmarks are detected
             phone_box = phone_detections[0].xyxy[0] # get bounding box coordinates of first phone detection
@@ -163,6 +181,16 @@ def main():
         elif not hand_holding_phone: # if no hand is holding the phone, reset the variable
             phone_last_frame = False
             #cv2.imshow('Phone Detections', frame)
+
+        #get daily stats
+        pickups, duration = get_daily_stats()
+        minutes = int(duration // 60)
+        seconds = int(duration % 60)
+
+        #draw stats on frame
+        stats_text = f"Today: {pickups} pickups | Daily Usage: {minutes}m {seconds}s total"
+        cv2.putText(annotated_frame, stats_text, (10,30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2) # draw stats text on frame
 
         annotated_frame = box_annotator.annotate(scene=frame.copy(), detections=phone_detections)
         #annotated_frame = label_annotator.annotate(scene=annotated_frame, detections=phone_detections)
