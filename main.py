@@ -148,9 +148,6 @@ def main():
         # DEBUG: Print if hands detected
         print(f"Hands detected: {len(hand_results.hand_landmarks) if hand_results.hand_landmarks else 0}")
 
-        result = model(frame)[0] # get the first result (since we are processing one frame at a time)
-        detections = sv.Detections.from_ultralytics(result)
-
         #draw hand landmarks on frame
         if hand_results.hand_landmarks:
             for hand_landmarks in hand_results.hand_landmarks:
@@ -181,20 +178,21 @@ def main():
         elif not hand_holding_phone: # if no hand is holding the phone, reset the variable
             phone_last_frame = False
             #cv2.imshow('Phone Detections', frame)
+        
+
+        annotated_frame = box_annotator.annotate(scene=frame.copy(), detections=phone_detections)
+        #annotated_frame = label_annotator.annotate(scene=annotated_frame, detections=phone_detections)
 
         #get daily stats
         pickups, duration = get_daily_stats()
         minutes = int(duration // 60)
         seconds = int(duration % 60)
-
+        
         #draw stats on frame
         stats_text = f"Today: {pickups} pickups | Daily Usage: {minutes}m {seconds}s total"
         cv2.putText(annotated_frame, stats_text, (10,30),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2) # draw stats text on frame
-
-        annotated_frame = box_annotator.annotate(scene=frame.copy(), detections=phone_detections)
-        #annotated_frame = label_annotator.annotate(scene=annotated_frame, detections=phone_detections)
-
+        
         cv2.imshow('Phone Detections', annotated_frame)
         
         if hand_holding_phone and phone_pickup_time is None: # if hand is holding phone and pickup time is not already set
