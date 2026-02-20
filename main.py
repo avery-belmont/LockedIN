@@ -1,4 +1,5 @@
 import argparse
+import os
 import numpy as np
 import cv2
 from requests import options
@@ -12,6 +13,7 @@ from mediapipe.tasks.python import vision
 import csv
 from datetime import datetime
 
+os.makedirs('training_data/images', exist_ok=True) # create directory for training images if it doesn't exist
 
 usage_log = [] # list to store usage log entries
 
@@ -51,6 +53,11 @@ def parse_arguments() -> argparse.Namespace:
            nargs = "+", 
            type = int, 
            default = [1280, 720]
+    )
+    parser.add_argument( # add argument for data collection mode
+    "--collect-data",
+    action="store_true",
+    help="Enable data collection mode for training"
     )
     args = parser.parse_args()
     return args
@@ -112,6 +119,15 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) # width
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) # height
 
+    data_collection_mode = True # set to True to enable data collection mode for training
+    image_count = 0 # counter for saved images in data collection mode
+
+    #count existing images in training data folder to avoid overwriting
+    if data_collection_mode:
+        existing_images = len([f for f in os.listdir('training_data/images') if f.endswith('.jpg')])
+        image_count = existing_images
+        print("DATA COLLECTION MODE: Press SPACE to capture, Q to quit")
+        print(f"Current image count: {image_count}")
 
     model = YOLO("yolov8s.pt")
 
@@ -137,6 +153,23 @@ def main():
 
         frame_height, frame_width = frame.shape[:2] # get actual frame dimensions
 
+        # If in data collection mode, display instructions and capture images on spacebar press
+        if data_collection_mode:
+            display_frame = frame.copy()
+            cv2.putText(display_frame, f"Images: {image_count}", (10,30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2) # display image count on frame
+            cv2.imshow('Data Collection', display_frame)
+
+            key = cv2.waitKey(1)
+            if key == ord(' '): # press space to capture image
+                filename = f'training_data/images/img_{image_count:04d}.jpg'
+                cv2.imwrite(filename, frame) # save frame to training data folder
+                image_count += 1
+                print(f"Saved {filename}")
+            elif key == ord('q'): # press q to quit data collection mode
+                print("Exiting data collection mode.")
+                break
+            continue # skip the rest of the loop to avoid running detection while in data collection mode
 
         #convert frame for mediapipe
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
