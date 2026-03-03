@@ -20,6 +20,22 @@ dataset = version.download("yolov8")
 
 print(f"✓ Dataset downloaded to: {dataset.location}")
 
+
+# Fix data.yaml to use train for validation
+import yaml
+
+yaml_path = f"{dataset.location}/data.yaml"
+with open(yaml_path, 'r') as f:
+    data_config = yaml.safe_load(f)
+
+# Use train images for validation if valid doesn't exist
+data_config['val'] = data_config['train']
+
+with open(yaml_path, 'w') as f:
+    yaml.dump(data_config, f)
+
+print("✓ Fixed data.yaml to use train set for validation")
+
 # Step 2: Load pre-trained YOLO model
 print("\n[2/4] Loading YOLOv8 base model...")
 model = YOLO('yolov8n.pt')  # nano model - fastest, good for laptops
